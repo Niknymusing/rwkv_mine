@@ -28,6 +28,8 @@ def __nop(ob):
 
 import sys 
 sys.path.append(os.getcwd()+'/src/rave')
+sys.path.append('/content/rwkv_mine/RWKVv5/src/rave')
+sys.path.append('/content/rwkv_mine/RWKVv5/src')
 from rave.blocks import EncoderV2
 from mine import MultiscaleSequence_MINE
 from pqmf import CachedPQMF
@@ -611,7 +613,7 @@ class RWKV(pl.LightningModule):
             self.drop0 = nn.Dropout(p = args.dropout)
 
 
-        self.embeddings_buffer = deque(len=64)#.to(self.device) if pqmf is not None else None
+        self.embeddings_buffer = deque(maxlen=64)#.to(self.device) if pqmf is not None else None
         self.encoder = SpiralnetRAVEncoder(self.embeddings_buffer)#.to(device)#.to(self.device)
         # RWKV initialization with SimpleNamespace arguments
         
