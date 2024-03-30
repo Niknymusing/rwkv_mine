@@ -561,8 +561,8 @@ class SpiralnetRAVEncoder(nn.Module):
         self.layer_norm = nn.LayerNorm(2 * self.embedding_dim)
         self.prev_embeddings = deq
     
-    def pqmf(self, x):
-        return self.pqmf(x)
+    #def pqmf(self, x):
+    #    return self.pqmf(x)
 
     def forward(self, pose_tensor, audio_buffer):
         #print('pose_tensor.shape', pose_tensor.shape)
