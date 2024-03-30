@@ -1520,7 +1520,7 @@ class SpiralnetEncoder(nn.Module):
 
 def instantiate_model(nr_layers = 8, output_dim = 16):    
     
-    device = 'cpu'
+    device = 'cuda'
 
     class Mesh2:
         def __init__(self, v, f):
