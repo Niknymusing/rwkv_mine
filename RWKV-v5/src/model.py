@@ -32,7 +32,7 @@ sys.path.append('/content/rwkv_mine/RWKVv5/src/rave')
 sys.path.append('/content/rwkv_mine/RWKVv5/src')
 from rave.blocks import EncoderV2
 from mine import MultiscaleSequence_MINE
-from pqmf import CachedPQMF
+from rave.pqmf import CachedPQMF
 from spiralnet import instantiate_model as instantiate_spiralnet 
 print('new imports worked')
 
@@ -582,6 +582,44 @@ class SpiralnetRAVEncoder(nn.Module):
 
 
 
+def print_grad_hook(module, grad_input, grad_output):
+    # Check if any gradients are None
+    grad_input_none = any(g is None for g in grad_input)
+    grad_output_none = any(g is None for g in grad_output)
+
+    if grad_input_none or grad_output_none:
+        # Print the module name and its unique identifier
+        print(f"Module: {module.__class__.__name__}, id: {id(module)}")
+
+        # Check and print grad_input details
+        if grad_input_none:
+            print("  Grad Input: None detected")
+            for idx, g in enumerate(grad_input):
+                if g is None:
+                    print(f"    grad_input[{idx}]: None")
+                else:
+                    print(f"    grad_input[{idx}]: Exists, shape: {g.shape}, requires_grad: {g.requires_grad}")
+
+        # Check and print grad_output details
+        if grad_output_none:
+            print("  Grad Output: None detected")
+            for idx, g in enumerate(grad_output):
+                if g is None:
+                    print(f"    grad_output[{idx}]: None")
+                else:
+                    print(f"    grad_output[{idx}]: Exists, shape: {g.shape}, requires_grad: {g.requires_grad}")
+
+        # Extra information for debugging
+        if hasattr(module, 'weight'):
+            weight_requires_grad = module.weight.requires_grad if module.weight is not None else 'No weight'
+            print(f"  Module Weight requires_grad: {weight_requires_grad}")
+        if hasattr(module, 'bias'):
+            bias_requires_grad = module.bias.requires_grad if module.bias is not None else 'No bias'
+            print(f"  Module Bias requires_grad: {bias_requires_grad}")
+
+
+
+
 class RWKV(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
@@ -619,6 +657,11 @@ class RWKV(pl.LightningModule):
         
         self.mine =  MultiscaleSequence_MINE([1, 4, 16, 64], [1, 4, 16, 64], args.n_embd, 256)#.to(device)
         
+        for param in self.parameters():
+            param.requires_grad = True
+        # only for debugging gradients : 
+        for name, module in self.named_modules():
+            module.register_backward_hook(print_grad_hook)
 
     def configure_optimizers(self):
         args = self.args
@@ -754,10 +797,13 @@ class RWKV(pl.LightningModule):
     
     def training_step(self, batch):
         pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = batch 
-        emb = self.encoder(pose_batch, audio_batch)
+        #print('pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
+        emb = self.encoder(pose_batch, audio_batch)                         
         emb = self(emb)
+        #print('emb.shape = ', emb.shape )
         joints, marginals = self.encoder.pqmf(audio_ahead_joints), self.encoder.pqmf(audio_ahead_marginals)
-        mi = self.mine(emb, joints, marginals)
+        #print('joints.shape, marginals.shape =', joints.shape, marginals.shape)
+        mi = self.mine(emb.reshape(64, -1, 1), joints, marginals)
         loss = - sum(mi)
         return loss
 
