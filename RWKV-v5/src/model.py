@@ -216,10 +216,10 @@ class RWKV_TimeMix_RWKV5(MyModule):
         xr = x * self.time_mix_r + xx * (1 - self.time_mix_r)
         xg = x * self.time_mix_g + xx * (1 - self.time_mix_g)
 
-        r = self.receptance(xr)
-        k = self.key(xk)
-        v = self.value(xv)
-        g = F.silu(self.gate(xg))
+        r = self.receptance(xr).to(dtype=torch.bfloat16)
+        k = self.key(xk).to(dtype=torch.bfloat16)
+        v = self.value(xv).to(dtype=torch.bfloat16)
+        g = F.silu(self.gate(xg)).to(dtype=torch.bfloat16)
 
         return r, k, v, g
 
@@ -238,7 +238,7 @@ class RWKV_TimeMix_RWKV5(MyModule):
 
         r, k, v, g = self.jit_func(x)
 
-        x = RUN_CUDA_RWKV5(B, T, C, H, r, k, v, w=self.time_decay, u=self.time_faaaa)
+        x = RUN_CUDA_RWKV5(B, T, C, H, r, k, v, w=self.time_decay.to(dtype=torch.bfloat16), u=self.time_faaaa.to(dtype=torch.bfloat16))
 
         return self.jit_func_2(x, g)
 
@@ -314,13 +314,13 @@ class RWKV_Tmix_x060(MyModule):
         xr = x + xx * (self.time_maa_r + mr)
         xg = x + xx * (self.time_maa_g + mg)
 
-        r = self.receptance(xr)
-        k = self.key(xk)
-        v = self.value(xv)
-        g = F.silu(self.gate(xg))
+        r = self.receptance(xr).to(dtype=torch.bfloat16)
+        k = self.key(xk).to(dtype=torch.bfloat16)
+        v = self.value(xv).to(dtype=torch.bfloat16)
+        g = F.silu(self.gate(xg)).to(dtype=torch.bfloat16)
 
         ww = torch.tanh(xw @ self.time_decay_w1) @ self.time_decay_w2
-        w = self.time_decay + ww
+        w = (self.time_decay + ww).to(dtype=torch.bfloat16)
 
         return r, k, v, g, w
 
@@ -577,7 +577,7 @@ class SpiralnetRAVEncoder(nn.Module):
         #print('x.shape', x.shape)
         
         #values = 127 * torch.sigmoid(values) 
-        return x
+        return x#.to(dtype=torch.bfloat16)
 
 
 
