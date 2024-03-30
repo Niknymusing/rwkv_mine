@@ -1406,12 +1406,16 @@ class SpiralConv(nn.Module):
 
     def forward(self, x):
         n_nodes, _ = self.indices.size()
+
+        # Move indices to the same device as x
+        device_indices = self.indices.to(x.device)
+
         if x.dim() == 2:
-            x = torch.index_select(x, 0, self.indices.view(-1))
+            x = torch.index_select(x, 0, device_indices.view(-1))
             x = x.view(n_nodes, -1)
         elif x.dim() == 3:
             bs = x.size(0)
-            x = torch.index_select(x, self.dim, self.indices.view(-1))
+            x = torch.index_select(x, self.dim, device_indices.view(-1))
             x = x.view(bs, n_nodes, -1)
         else:
             raise RuntimeError(
@@ -1429,10 +1433,10 @@ class SpiralConv(nn.Module):
 
 
 def Pool(x, trans, dim=1):
-    row, col = trans._indices()
-    value = trans._values().unsqueeze(-1)
-    out = torch.index_select(x, dim, col) * value#.T
-    out = scatter_add(out, row, dim, dim_size=trans.size(0))
+    row, col = trans._indices().to(x.device)
+    value = trans._values().unsqueeze(-1).to(x.device)
+    out = (torch.index_select(x, dim, col) * value).to(x.device)#.T
+    out = scatter_add(out, row, dim, dim_size=trans.size(0))#.to(x.device)
     return out
 
 
