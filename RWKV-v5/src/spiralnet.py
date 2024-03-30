@@ -1520,7 +1520,7 @@ class SpiralnetEncoder(nn.Module):
 
 def instantiate_model(nr_layers = 8, output_dim = 16):    
     
-    device = 'cuda'
+    #device = 'cuda'
 
     class Mesh2:
         def __init__(self, v, f):
@@ -1568,11 +1568,11 @@ def instantiate_model(nr_layers = 8, output_dim = 16):
     spiral_indices_list = [
         preprocess_spiral(tmp['face'][idx], seq_length[idx],
                                 tmp['vertices'][idx],
-                                dilation[idx]).to(device)
+                                dilation[idx])
         for idx in range(len(tmp['face']) - 1)
     ]
     down_transform_list = [
-        to_sparse(down_transform).to(device)
+        to_sparse(down_transform)
         for down_transform in tmp['down_transform']
     ]
 
