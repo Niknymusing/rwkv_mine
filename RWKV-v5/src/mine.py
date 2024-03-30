@@ -22,12 +22,16 @@ from rave.pqmf import CachedPQMF
 #from models.rwkv.src.rwkv.model import RWKV
 
 class RunningMineMean:
-    def __init__(self):
-        self.sum_joints = torch.tensor(0.0)  # Running sum of elements
-        self.sum_margs = torch.tensor(0.0)
-        self.count = torch.tensor(0.0)  # Count of elements
+    def __init__(self, device):
+        self.sum_joints = torch.tensor(0.0, device=device)  # Initialize on specified device
+        self.sum_margs = torch.tensor(0.0, device=device)
+        self.count = torch.tensor(0.0, device=device)
+
 
     def update(self, y_joint, y_marg):
+        # Assuming y_joint and y_marg are already on the correct device
+        y_joint = y_joint.to(self.sum_joints.device)
+        y_marg = y_marg.to(self.sum_margs.device)
         self.sum_joints += y_joint
         self.sum_margs += y_marg
         self.count += 1
@@ -35,8 +39,9 @@ class RunningMineMean:
 
     def mine_mean(self):
         if self.count == 0:
-            return torch.tensor(float('nan'))  # Handle division by 0
+            return torch.tensor(float('nan'), device=self.sum_joints.device)  # Return NaN on the same device
         return self.sum_joints / self.count - torch.log(torch.exp(self.sum_margs / self.count))
+
 
 
 class MultiscaleSequence_MINE(nn.Module):
@@ -62,8 +67,11 @@ class MultiscaleSequence_MINE(nn.Module):
         self.linear_proj1 = nn.ModuleList([nn.Linear(self.latent_dim, self.latent_dim) for _ in range(len(self.time_scales_past) * len(self.time_scales_future))]) 
         self.linear_proj2 = nn.ModuleList([nn.Linear(self.latent_dim, self.latent_dim) for _ in range(len(self.time_scales_past) * len(self.time_scales_future))]) 
         self.down_proj = nn.ModuleList([nn.Linear(self.latent_dim, 1) for _ in range(len(self.time_scales_past) * len(self.time_scales_future))])
-        self.running_means = [RunningMineMean() for _ in range(self.nr_future_timescales * self.nr_past_timescales)]
-    
+        #self.running_means = [RunningMineMean() for _ in range(self.nr_future_timescales * self.nr_past_timescales)]
+        device = next(self.parameters()).device
+        self.running_means = [RunningMineMean(device=device) for _ in range(self.nr_future_timescales * self.nr_past_timescales)]
+
+
     def downsample_pasts(self, input_tensor):
         scales = [1, 4, 16, 64]  # The scales you specified
         downsampled_tensors = []
@@ -138,6 +146,7 @@ class MultiscaleSequence_MINE(nn.Module):
             #print('z_joint shape', z_joint.shape, 'z_marg shape', z_marg.shape)
             #print('audio_embs[i].shape, z_joint.shape' , audio_embs[i].shape, z_joint.shape)
             #print('z_marg.shape: ', z_marg.shape)
+            #print('embs[i].shape, z_joint.shape = ', embs[i].shape, z_joint.shape, flush=True)
             y_joint = torch.cat((embs[i].squeeze(2), z_joint.squeeze(2)), dim=1)
             y_marg = torch.cat((embs[i].squeeze(2), z_marg.reshape(1, self.latent_input_dim)), dim=1)
 
