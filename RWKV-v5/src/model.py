@@ -618,6 +618,24 @@ def print_grad_hook(module, grad_input, grad_output):
             print(f"  Module Bias requires_grad: {bias_requires_grad}")
 
 
+def full_backward_hook(module, grad_input, grad_output):
+    print(f"Module: {module.__class__.__name__}, id: {id(module)}")
+
+    # Print details of grad_input (gradients of inputs to the module)
+    for idx, g in enumerate(grad_input):
+        if g is None:
+            print(f"  grad_input[{idx}]: None")
+        else:
+            print(f"  grad_input[{idx}]: shape: {g.shape}, requires_grad: {g.requires_grad}, norm: {g.norm()}")
+
+    # Print details of grad_output (gradients of outputs from the module)
+    for idx, g in enumerate(grad_output):
+        if g is None:
+            print(f"  grad_output[{idx}]: None")
+        else:
+            print(f"  grad_output[{idx}]: shape: {g.shape}, requires_grad: {g.requires_grad}, norm: {g.norm()}")
+
+
 
 
 class RWKV(pl.LightningModule):
@@ -660,8 +678,8 @@ class RWKV(pl.LightningModule):
         for param in self.parameters():
             param.requires_grad = True
         # only for debugging gradients : 
-        for name, module in self.named_modules():
-            module.register_backward_hook(print_grad_hook)
+        #for name, module in self.named_modules():
+        #    module.register_full_backward_hook(full_backward_hook)
 
     def configure_optimizers(self):
         args = self.args
@@ -751,7 +769,13 @@ class RWKV(pl.LightningModule):
         return self.mine(audio_pose_tensor, joints, marginals)
 
 
-    def forward(self, x):
+    def forward(self, inputs):
+
+        pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = inputs
+        #print('pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
+        x = self.encoder(pose_batch, audio_batch)                         
+        
+
         args = self.args
         B, T, _ = x.size()
         assert T <= args.ctx_len, "Cannot forward, model ctx_len is exhausted."
@@ -774,7 +798,15 @@ class RWKV(pl.LightningModule):
                 else:
                     x = block(x)
 
-        x = self.ln_out(x)
+        emb = self.ln_out(x)
+
+
+        
+        #print('emb.shape = ', emb.shape )
+        joints, marginals = self.encoder.pqmf(audio_ahead_joints), self.encoder.pqmf(audio_ahead_marginals)
+        #print('joints.shape, marginals.shape =', joints.shape, marginals.shape)
+        mi = self.mine(emb.reshape(64, -1, 1), joints, marginals)
+        loss = - sum(mi)
 
         #if args.head_qk > 0:
         #    q = self.head_q(x)[:, :T, :]
@@ -793,18 +825,13 @@ class RWKV(pl.LightningModule):
         #else:
         #    x = self.head(x)
 
-        return x
+        return loss
     
     def training_step(self, batch):
-        pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = batch 
+        #pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = batch 
         #print('pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-        emb = self.encoder(pose_batch, audio_batch)                         
-        emb = self(emb)
-        #print('emb.shape = ', emb.shape )
-        joints, marginals = self.encoder.pqmf(audio_ahead_joints), self.encoder.pqmf(audio_ahead_marginals)
-        #print('joints.shape, marginals.shape =', joints.shape, marginals.shape)
-        mi = self.mine(emb.reshape(64, -1, 1), joints, marginals)
-        loss = - sum(mi)
+        loss = self(batch)
+        print('training step rerturned loss = ', loss)
         return loss
 
     
