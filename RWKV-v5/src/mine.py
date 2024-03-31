@@ -23,25 +23,25 @@ from rave.pqmf import CachedPQMF
 
 class RunningMineMean:
     def __init__(self, device):
-        self.sum_joints = torch.tensor(0.0, device=device)  # Initialize on specified device
-        self.sum_margs = torch.tensor(0.0, device=device)
-        self.count = torch.tensor(0.0, device=device)
-
+        self.sum_joints = torch.tensor(0.0, requires_grad=True)
+        self.sum_margs = torch.tensor(0.0, requires_grad=True)
+        self.count = torch.tensor(0.0, requires_grad=True)
 
     def update(self, y_joint, y_marg):
-        # Assuming y_joint and y_marg are already on the correct device
-        y_joint = y_joint.to(self.sum_joints.device)
-        y_marg = y_marg.to(self.sum_margs.device)
-        self.sum_joints += y_joint
-        self.sum_margs += y_marg
-        self.count += 1
-        return self.sum_joints / self.count - torch.log(torch.exp(self.sum_margs / self.count))
+        # Avoiding in-place operations and ensuring requires_grad is propagated
+        updated_sum_joints = self.sum_joints + y_joint
+        updated_sum_margs = self.sum_margs + y_marg
+        updated_count = self.count + 1
 
-    def mine_mean(self):
-        if self.count == 0:
-            return torch.tensor(float('nan'), device=self.sum_joints.device)  # Return NaN on the same device
-        return self.sum_joints / self.count - torch.log(torch.exp(self.sum_margs / self.count))
+        # Calculate the running mean without modifying the original tensors
+        running_mean = updated_sum_joints / updated_count - torch.log(torch.exp(updated_sum_margs / updated_count))
 
+        # Update the running sums and count
+        self.sum_joints = updated_sum_joints.detach().requires_grad_()
+        self.sum_margs = updated_sum_margs.detach().requires_grad_()
+        self.count = updated_count.detach().requires_grad_()
+
+        return running_mean.detach().requires_grad_()
 
 
 class MultiscaleSequence_MINE(nn.Module):
