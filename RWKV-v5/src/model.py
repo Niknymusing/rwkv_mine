@@ -683,6 +683,29 @@ class RWKV(pl.LightningModule):
 
     def configure_optimizers(self):
         args = self.args
+        new_params = list(self.encoder.parameters()) + list(self.mine.parameters())
+    
+        # Use a set to keep track of the parameter IDs in new_params to avoid duplicates
+        new_params_ids = set(id(p) for p in new_params)
+    
+        # Gather all other parameters excluding those in new_params
+        other_params = [p for p in self.parameters() if id(p) not in new_params_ids]
+    
+        # Combine all parameters
+        all_params = other_params + new_params
+    
+        if args.weight_decay > 0:
+            optimizer = FusedAdam(all_params, lr=args.lr_init, betas=args.betas, eps=args.adam_eps, 
+                                  bias_correction=True, adam_w_mode=True, amsgrad=False, weight_decay=args.weight_decay)
+        else:
+            optimizer = FusedAdam(all_params, lr=args.lr_init, betas=args.betas, eps=args.adam_eps, 
+                                  bias_correction=True, adam_w_mode=False, weight_decay=0, amsgrad=False)
+    
+        return optimizer
+    
+    
+    def _configure_optimizers(self):
+        args = self.args
         new_params = list(self.encoder.parameters())+list(self.mine.parameters())
         lr_decay = set()
         lr_1x = set()
