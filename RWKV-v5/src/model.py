@@ -850,11 +850,22 @@ class RWKV(pl.LightningModule):
 
         return loss
     
-    def training_step(self, batch):
-        #pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = batch 
-        #print('pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape = ', pose_batch.shape, audio_batch.shape, audio_ahead_joints.shape, audio_ahead_marginals.shape)
-        loss = self(batch)
-        print('training step rerturned loss = ', loss)
+    def training_step(self, batch, batch_idx):
+        # Unpack the batch
+        pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals = batch
+
+        # Reshape tensors to match the required input shapes for the forward pass
+        pose_batch = pose_batch.view(64, 33, 3)  # Reshape to (64, 33, 3)
+        audio_batch = audio_batch.view(64, 1, 2048)  # Reshape to (64, 1, 2048)
+        audio_ahead_joints = audio_ahead_joints.view(64, 1, 2048)  # Reshape to (64, 1, 2048)
+        audio_ahead_marginals = audio_ahead_marginals.view(64, 1, 2048)  # Reshape to (64, 1, 2048)
+
+        # Create a tuple of the four tensors and pass it to the model
+        inputs = (pose_batch, audio_batch, audio_ahead_joints, audio_ahead_marginals)
+        loss = self(inputs)
+
+        # Log and return the loss
+        self.log('train_loss', loss)
         return loss
 
     
